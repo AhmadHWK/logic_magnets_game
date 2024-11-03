@@ -71,9 +71,9 @@ class Game:
             self.board.board[y][x] = piece
             print(f"Moved '{piece}' to ({y}, {x})")
             if piece == "P":
-                self.move_iron_balls(y, x, direction="away")  
+                self.move_iron_balls(y, x, direction="P")  
             elif piece == "R":
-                self.move_iron_balls(y, x, direction="toward")           
+                self.move_iron_balls(y, x, direction="R")           
             self.selected_piece = None
             self.check_win()  
 
@@ -81,7 +81,7 @@ class Game:
         for r in range(self.board.size):
             for c in range(self.board.size):
                 if self.board.board[r][c] == "I":
-                    if direction == "away":  
+                    if direction == "P":  
                         if r == row: 
                             if c < col and c + 1 < self.board.size and self.board.board[r][c + 1] == "*":
                                 self.board.board[r][c + 1], self.board.board[r][c] = "I", "*"
@@ -92,13 +92,13 @@ class Game:
                                 self.board.board[r + 1][c], self.board.board[r][c] = "I", "*"
                             elif r > row and r - 1 >= 0 and self.board.board[r - 1][c] == "*":
                                 self.board.board[r - 1][c], self.board.board[r][c] = "I", "*"
-                    elif direction == "toward":  
+                    elif direction == "R":  
                         if r == row: 
                             if c < col and c - 1 >= 0 and self.board.board[r][c - 1] == "*":
                                 self.board.board[r][c - 1], self.board.board[r][c] = "I", "*"
                             elif c > col and c + 1 < self.board.size and self.board.board[r][c + 1] == "*":
                                 self.board.board[r][c + 1], self.board.board[r][c] = "I", "*"
-                        elif c == col:  # Same column
+                        elif c == col:  
                             if r < row and r - 1 >= 0 and self.board.board[r - 1][c] == "*":
                                 self.board.board[r - 1][c], self.board.board[r][c] = "I", "*"
                             elif r > row and r + 1 < self.board.size and self.board.board[r + 1][c] == "*":
