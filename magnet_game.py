@@ -1,6 +1,5 @@
 import pygame
 import sys
-from collections import deque
 import threading
 
 pygame.init()
@@ -8,32 +7,31 @@ pygame.init()
 WHITE = "white"
 BLACK = "black"
 HIGHLIGHT_COLOR = (100, 100, 200)
-RED_COLOR = "red"
 PURPLE_COLOR = "purple"
 IRON_COLOR = "grey"
 SOLUTION_COLOR = "green"
 
 class Board:
-    def __init__(self, size):
+    def __init__(self, size=3):
         self.size = size
-        self.cell_size = 500 // size  
-        self.board = [["*" for _ in range(size)] for _ in range(size)]
-        self.solution_positions = [(0, 3), (size - 1, 2)]  
+        self.cell_size = 500 // self.size  
+        self.board = [["*" for _ in range(self.size)] for _ in range(self.size)]
+        self.solution_positions = [(0, 2), (1, 2), (1, 0)]  
         self.initial_pieces()
 
     def initial_pieces(self):
         initial_positions = {
-            (2, 0): "R",  
-            (2, self.size - 1): "P", 
-            (1, 2): "I",
-            (3, 2): "I"
+            (2, 0): "P",  
+            (0, 1): "I",
+            (1, 1): "I"
         }
         for position, value in initial_positions.items():
             if position[0] < self.size and position[1] < self.size:
                 self.board[position[0]][position[1]] = value
         self.red_ball_pos = (2, 0)
         self.purple_ball_pos = (2, self.size - 1)
-        self.iron_ball_positions = [(1, 2), (3, 2)]
+        self.iron_ball_positions = [(1, 2), (2, 2)]
+
 
     def draw(self, screen, cursor_x, cursor_y):
         screen.fill(WHITE)
@@ -45,138 +43,79 @@ class Board:
                     pygame.draw.rect(screen, SOLUTION_COLOR, rect) 
                 else:
                     pygame.draw.rect(screen, color, rect, 1) 
+                
                 piece = self.board[row][col]
-                if piece == "R": 
-                    pygame.draw.circle(screen, RED_COLOR, (col * self.cell_size + self.cell_size // 2, row * self.cell_size + self.cell_size // 2), self.cell_size // 3)
-                elif piece == "P": 
+                if piece == "P": 
                     pygame.draw.circle(screen, PURPLE_COLOR, (col * self.cell_size + self.cell_size // 2, row * self.cell_size + self.cell_size // 2), self.cell_size // 3)
                 elif piece == "I":  
                     pygame.draw.circle(screen, IRON_COLOR, (col * self.cell_size + self.cell_size // 2, row * self.cell_size + self.cell_size // 2), self.cell_size // 3)
+                    
 
-    def update_board(self, red_pos, purple_pos, iron_positions):
-        self.board = [["*" for _ in range(self.size)] for _ in range(self.size)]
-        for pos in iron_positions:
-            self.board[pos[0]][pos[1]] = "I"
-        self.board[red_pos[0]][red_pos[1]] = "R"
-        self.board[purple_pos[0]][purple_pos[1]] = "P"
+    def update_board(self, new_purple_pos):
+        old_pos = self.purple_ball_pos
+        self.board[old_pos[0]][old_pos[1]] = "*"  
+        self.purple_ball_pos = new_purple_pos
+        self.board[new_purple_pos[0]][new_purple_pos[1]] = "P"  
+        self.move_iron_ball()
 
-    def move_iron_balls(self, red_pos, purple_pos, iron_positions):
+    def move_iron_ball(self):
         new_iron_positions = []
-        for iron_pos in iron_positions:
-            y, x = iron_pos
-            if red_pos[0] == y:  
-                if x < red_pos[1]: 
-                    new_iron_positions.append((y, x + 1))  
-                elif x > red_pos[1]: 
-                    new_iron_positions.append((y, x - 1))  
-            elif red_pos[1] == x:  
-                if y < red_pos[0]: 
-                    new_iron_positions.append((y + 1, x))  
-                elif y > red_pos[0]: 
-                    new_iron_positions.append((y - 1, x))  
-            else:
-                new_iron_positions.append(iron_pos)
-
-            if purple_pos[0] == y:  
-                if x < purple_pos[1]:
-                    new_iron_positions.append((y, x + 1))  
-                elif x > purple_pos[1]:
-                    new_iron_positions.append((y, x - 1))  
-            elif purple_pos[1] == x:  
-                if y < purple_pos[0]:
-                    new_iron_positions.append((y + 1, x))  
-                elif y > purple_pos[0]:
-                    new_iron_positions.append((y - 1, x))  
-        return new_iron_positions
+        for (row, col) in self.iron_ball_positions:
+            if row == self.purple_ball_pos[0]:
+                row += 1 if row < self.size - 1 else -1
+            elif col == self.purple_ball_pos[1]:
+                col += 1 if col < self.size - 1 else -1
+            new_iron_positions.append((row, col))
+        for r, c in self.iron_ball_positions:
+            self.board[r][c] = "*"  
+        for r, c in new_iron_positions:
+            self.board[r][c] = "I"      
+        self.iron_ball_positions = new_iron_positions
 
 class GameSolver:
-    def __init__(self, game):
-        self.game = game
+    def __init__(self, board):
+        self.board = board
+        self.visited_states = set()
 
-    def is_win_state(self, iron_positions):
-        return set(iron_positions) == set(self.game.board.solution_positions)
+    def is_win_state(self):
+        return all(pos in self.board.solution_positions for pos in self.board.iron_ball_positions)
 
-    def get_possible_moves(self, piece_pos):
-       
-        y, x = piece_pos
-        moves = []
-        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]  
-
-        for dy, dx in directions:
-            new_y, new_x = y + dy, x + dx
-            if 0 <= new_y < self.game.board.size and 0 <= new_x < self.game.board.size:
-                if self.game.board.board[new_y][new_x] == "*":  
-                    moves.append((new_y, new_x))
-        return moves
-    def dfs(self):
-        stack = [(self.game.board.red_ball_pos, self.game.board.purple_ball_pos, self.game.board.iron_ball_positions)]
-        visited = set()
-
+    def dfs(self, position):
+        stack = [(position, [position])]
         while stack:
-            red_pos, purple_pos, iron_positions = stack.pop()
-            state = (red_pos, purple_pos, tuple(iron_positions))
-
-            if state in visited:
-                continue
-            visited.add(state)
-
-            if self.is_win_state(iron_positions):
-                return state  
-
-            for new_pos in self.get_possible_moves(red_pos):
-                new_iron_positions = self.game.board.move_iron_balls(new_pos, purple_pos, iron_positions)
-                self.game.board.update_board(new_pos, purple_pos, new_iron_positions)
-                pygame.time.delay(1000)  
-                self.game.board.draw(self.game.screen, 0, 0)  
-                pygame.display.flip()
-                stack.append((new_pos, purple_pos, new_iron_positions))
-
-            for new_pos in self.get_possible_moves(purple_pos):
-                new_iron_positions = self.game.board.move_iron_balls(red_pos, new_pos, iron_positions)
-                self.game.board.update_board(red_pos, new_pos, new_iron_positions)
-                pygame.time.delay(1000)  
-                self.game.board.draw(self.game.screen, 0, 0)  
-                pygame.display.flip()
-                stack.append((red_pos, new_pos, new_iron_positions))
-
+            current_pos, path = stack.pop()
+            if self.is_win_state():
+                return path
+            for new_pos in self.get_valid_moves(current_pos):
+                if new_pos not in self.visited_states:
+                    self.visited_states.add(new_pos)
+                    self.board.update_board(new_pos)  
+                    stack.append((new_pos, path + [new_pos]))
         return None  
 
-    def bfs(self):
-        queue = deque([(self.game.board.red_ball_pos, self.game.board.purple_ball_pos, self.game.board.iron_ball_positions)])
-        visited = set()
-
+    def bfs(self, position):
+        queue = [(position, [position])]
         while queue:
-            red_pos, purple_pos, iron_positions = queue.popleft()
-            state = (red_pos, purple_pos, tuple(iron_positions))
+            current_pos, path = queue.pop(0)
+            if self.is_win_state():
+                return path
+            for new_pos in self.get_valid_moves(current_pos):
+                if new_pos not in self.visited_states:
+                    self.visited_states.add(new_pos)
+                    self.board.update_board(new_pos)  
+                    queue.append((new_pos, path + [new_pos]))
+        return None  
 
-            if state in visited:
-                continue
-            visited.add(state)
-
-            if self.is_win_state(iron_positions):
-                return state  
-
-            for new_pos in self.get_possible_moves(red_pos):
-                new_iron_positions = self.game.board.move_iron_balls(new_pos, purple_pos, iron_positions)
-                self.game.board.update_board(new_pos, purple_pos, new_iron_positions)
-                pygame.time.delay(1000)  
-                self.game.board.draw(self.game.screen, 0, 0)  
-                pygame.display.flip()
-                queue.append((new_pos, purple_pos, new_iron_positions))
-
-            for new_pos in self.get_possible_moves(purple_pos):
-                new_iron_positions = self.game.board.move_iron_balls(red_pos, new_pos, iron_positions)
-                self.game.board.update_board(red_pos, new_pos, new_iron_positions)
-                pygame.time.delay(1000)  
-                self.game.board.draw(self.game.screen, 0, 0)  
-                pygame.display.flip()
-                queue.append((red_pos, new_pos, new_iron_positions))
-
-        return None 
-
+    def get_valid_moves(self, position):
+        row, col = position
+        possible_moves = [
+            (row - 1, col), (row + 1, col),  
+            (row, col - 1), (row, col + 1)   
+        ]
+        return [(r, c) for r, c in possible_moves if 0 <= r < self.board.size and 0 <= c < self.board.size]
 class Game:
-    def __init__(self, size):
-        self.board = Board(size)
+    def __init__(self):
+        self.board = Board()
         self.cursor_x, self.cursor_y = 0, 0  
         self.selected_piece = None
         self.win_message_displayed = False
@@ -201,10 +140,21 @@ class Game:
         solver_thread.start()
 
     def solve_game(self, algorithm):
+        board =Board(size=3)
+        game_solver = GameSolver(board)
+        initial_position = board.purple_ball_pos
         if algorithm == "dfs":
-            self.solver.dfs()
+            dfs_solution_path = game_solver.dfs(initial_position)
+            if dfs_solution_path:
+                print("DFS Solution Path:", dfs_solution_path)
+            else:
+                print("No solution found with DFS.")
         elif algorithm == "bfs":
-            self.solver.bfs()
+            bfs_solution_path = game_solver.bfs(initial_position)
+            if bfs_solution_path:
+                print("BFS Solution Path:", bfs_solution_path)
+            else:
+                print("No solution found with BFS.")
 
     def run(self):
         running = True
@@ -227,6 +177,5 @@ class Game:
             pygame.display.flip()
 
 if __name__ == "__main__":
-    game_size = int(input("Select Board Size: "))
-    game = Game(game_size)
+    game = Game()
     game.run()
